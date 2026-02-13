@@ -32,10 +32,10 @@ class Database
     public function getConnection(): PDO
     {
         if ($this->pdo === null) {
-            $host = getenv('DB_HOST') ?: 'db';
-            $db = getenv('MYSQL_DATABASE') ?: 'tariff_db';
-            $user = getenv('MYSQL_USER') ?: 'root';
-            $pass = getenv('MYSQL_PASSWORD') ?: 'root';
+            $host = $_ENV['DB_HOST'] ?? getenv('DB_HOST') ?: 'db';
+            $db = $_ENV['MYSQL_DATABASE'] ?? getenv('MYSQL_DATABASE') ?: 'tariff_db';
+            $user = $_ENV['MYSQL_USER'] ?? getenv('MYSQL_USER') ?: 'root';
+            $pass = $_ENV['MYSQL_PASSWORD'] ?? getenv('MYSQL_PASSWORD') ?: 'root';
             $charset = 'utf8mb4';
 
             $dsn = "mysql:host=$host;dbname=$db;charset=$charset";

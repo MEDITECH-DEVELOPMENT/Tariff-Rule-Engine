@@ -2,6 +2,12 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use Dotenv\Dotenv;
+
+$dotenv = Dotenv::createImmutable(__DIR__ . '/../');
+$dotenv->safeLoad();
+
+
 use Database\Database;
 use Service\TariffCalculator;
 use Domain\Strategies\AnaestheticStrategy014A;

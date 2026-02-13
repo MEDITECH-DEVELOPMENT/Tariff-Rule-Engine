@@ -113,21 +113,82 @@ class AnaestheticStrategy014A implements DisciplineStrategy
 
         // FIND 0023 Rate from input (if present)
         $timeUnitRate = 0.0;
+        
+        // Helper to extract MSR list
+        $getMsrList = function($proc) {
+            $data = $proc['msrs'] ?? [];
+            if (isset($data['pageResult'])) return $data['pageResult'];
+            return is_array($data) ? $data : [];
+        };
+
         foreach ($context->procedures as $proc) {
             if ($proc['code'] === '0023') {
                 // Try to derive rate
-                $msr = $proc['msrs'][0] ?? null;
-                if ($msr && $msr['numberOfUnits'] > 0) {
-                    $timeUnitRate = $msr['tariffRatePublished'] / $msr['numberOfUnits'];
+                $list = $getMsrList($proc);
+                $msr = $list[0] ?? null;
+                if ($msr && ($msr['numberOfUnits'] ?? 0) > 0) {
+                    $rate = $msr['tariffRatePublished'] ?? 0;
+                    if ($rate == 0) $rate = $msr['tariffRandSchemeFixed'] ?? 0;
+                    $timeUnitRate = $rate / $msr['numberOfUnits'];
                 }
             }
         }
-        // If still 0, default to a safe fallback or warn.
-        if ($timeUnitRate == 0)
-            $timeUnitRate = 22.50; // Approximating typical rate.
 
-        $reducibleAmount = $timeUnits * $timeUnitRate; // Time is always reducible
-        $exemptAmount = 0.0;
+        // Fallback: If 0023 is missing (common with this JSON structure), 
+        // we must derive the RCF from another procedure in the list.
+        if ($timeUnitRate == 0) {
+             foreach ($context->procedures as $proc) {
+                $list = $getMsrList($proc);
+                $msr = $list[0] ?? null;
+                if ($msr && ($msr['numberOfUnits'] ?? 0) > 0) {
+                    $rate = $msr['tariffRatePublished'] ?? 0; 
+                    // This MSR example has rate 18.86 for 16 units? That's R1.17/unit. 
+                    // Wait, the JSON says: tariffRatePublished: 18.8625, tariffRandCalculated: 301.79...
+                    // 16 units * 18.86 = 301.79. 
+                    // SO: tariffRatePublished IS THE UNIT PRICE. 
+                    // My previous assumption (Total Price) vs Code (Unit Price) needs checking.
+                    // The MSR JSON says "tariffRatePublished": 18.8625. "numberOfUnits": 16. "tariffRandCalculated": 301.79.
+                    // 18.8625 * 16 = 301.8. 
+                    // CONCLUSION: tariffRatePublished IS THE UNIT PRICE (RCF * UnitValue).
+                    // So we can use the published rate of any procedure as a guide? No, rates differ by code.
+                    // We need the RCF (Rand Conversion Factor).
+                    // RCF = tariffRatePublished / UnitValue? No.
+                    // tariffRatePublished IS the Price Per Unit? No, usually Price = Units * RCF.
+                    // Let's look at the JSON again in the prompt.
+                    // "tariffRandCalculated": 301.79. "numberOfUnits": 16. "tariffRatePublished": 18.8625.
+                    // 301.79 / 16 = 18.86.
+                    // So "tariffRatePublished" is actually "Price Per Unit of the Code" or "Total"? 
+                    // 18.86 * 16 = 301.
+                    // So 18.86 IS THE RCF? Or the Unit Price? 
+                    // Usually Units are fixed (e.g. 16). Price = 16 * RCF.
+                    // If Price is 301, and Units is 16, then RCF is 18.86.
+                    
+                    // So if we find ANY procedure, we can pluck its `tariffRcfPublished`? 
+                    // The JSON has "tariffRcfPublished": 24.351.
+                    // 24.351 (RCF) * 16 (Units) = 389.6. (matches tariffRandRcfSchemeRate).
+                    // But tariffRandCalculated is 301.79 (lower).
+                    
+                    // OK, we should use `tariffRcfPublished` if available to price the Time Units (0023).
+                    // This is the most logical "System Rate".
+                    
+                    if (!empty($msr['tariffRcfPublished'])) {
+                        $timeUnitRate = $msr['tariffRcfPublished']; // This is the RCF. 
+                        // Time Price = TimeUnits * RCF.
+                        $result->log("Derived Time RCF from Code {$proc['code']}: " . $timeUnitRate);
+                        break;
+                    }
+                }
+             }
+        }
+        
+        // If still 0, default to a safe fallback.
+        if ($timeUnitRate == 0) {
+            $timeUnitRate = 22.50; 
+            $result->log("Using Fallback Time RCF: " . $timeUnitRate);
+        }
+
+        $reducibleBucketUnits = $timeUnits * $timeUnitRate; // Time is always reducible
+        $exemptBucketUnits = 0.0;
 
         foreach ($context->procedures as $proc) {
             $code = $proc['code'];
@@ -135,32 +196,62 @@ class AnaestheticStrategy014A implements DisciplineStrategy
             if ($code === '0023')
                 continue;
 
-            $msr = $proc['msrs'][0] ?? null;
+            // Handle different JSON structures for MSRS (Array or Paginated Object)
+            $msrData = $proc['msrs'] ?? [];
+            $msrList = [];
+            
+            if (isset($msrData['pageResult'])) {
+                $msrList = $msrData['pageResult'];
+            } elseif (is_array($msrData)) {
+                $msrList = $msrData;
+            }
+
+            $msr = $msrList[0] ?? null;
+            
+            // Log if we can't find pricing
+            if (!$msr) {
+                $result->log("Warning: No price found for code {$code}");
+                continue;
+            }
+
+            // Prefer tariffRatePublished, fallback to tariffRandSchemeFixed or others
             $price = $msr['tariffRatePublished'] ?? 0.0;
+            if ($price <= 0) {
+                 $price = $msr['tariffRandSchemeFixed'] ?? 0.0;
+            }
+            // If still zero, try calculated
+            if ($price <= 0) {
+                $price = $msr['tariffRandCalculated'] ?? 0.0;
+            }
 
             // Check exemption
             $meta = $codeMap[$code] ?? [];
             $isExempt = !empty($meta['is_exempt_from_0036']);
 
             if ($isExempt) {
-                $exemptAmount += $price;
-                $result->log("Exempt code {$code} identified: Billed at 100% of JSON units.");
+                // For exempt codes, we use the full price
+                // We established that 'tariffRandCalculated' is the best "Total Price"
+                $priceToUse = $msr['tariffRandCalculated'] ?? ($msr['tariffRatePublished'] * $msr['numberOfUnits']);
+                $exemptBucketUnits += $priceToUse;
+                // $result->log("Exempt code {$code}: Added R" . number_format($priceToUse, 2));
             } else {
-                $reducibleAmount += $price;
+                // Reducible
+                $priceToUse = $msr['tariffRandCalculated'] ?? ($msr['tariffRatePublished'] * $msr['numberOfUnits']);
+                $reducibleBucketUnits += $priceToUse; // Previously only added time, now adds procedure too
             }
         }
 
-        $result->log("Buckets before reduction: Reducible R" . number_format($reducibleAmount, 2) . ", Exempt R" . number_format($exemptAmount, 2));
+        $result->log("Buckets before reduction: Reducible R" . number_format($reducibleBucketUnits, 2) . ", Exempt R" . number_format($exemptBucketUnits, 2));
 
         // 4. Modifier 0036 (GP Reduction)
         // Rule: Discipline == 014A AND total_minutes > 60
         if ($durationMinutes > 60) {
             $result->log("Modifier 0036 applied: Reducible bucket (Time + Procedures) multiplied by 0.8.");
-            $reducibleAmount *= 0.8;
+            $reducibleBucketUnits *= 0.8;
         }
 
         // 5. Total
-        $total = $reducibleAmount + $exemptAmount;
+        $total = $reducibleBucketUnits + $exemptBucketUnits;
         $result->addAmount($total);
 
         // 6. PMB Check

@@ -2,6 +2,12 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use Dotenv\Dotenv;
+
+$dotenv = Dotenv::createImmutable(__DIR__ . '/../');
+$dotenv->safeLoad();
+
+
 use Database\Database;
 
 $db = new Database();
@@ -47,12 +53,16 @@ foreach ($files as $file) {
         $stmt = $pdo->prepare("INSERT INTO applied_migrations (migration) VALUES (?)");
         $stmt->execute([$filename]);
 
-        $pdo->commit();
+        if ($pdo->inTransaction()) {
+            $pdo->commit();
+        }
         echo "DONE.\n";
         $newMigrations++;
 
-    } catch (Exception $e) {
-        $pdo->rollBack();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         echo "FAILED.\n";
         echo "Error: " . $e->getMessage() . "\n";
         exit(1);
