@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anaesthetic Tariff Calculator</title>
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Select2 -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <style>
+        .select2-container .select2-selection--single {
+            height: 42px;
+            padding: 6px;
+            border-radius: 0.5rem;
+            border-color: #d1d5db;
+        }
+
+        .select2-container .select2-selection__rendered {
+            line-height: 28px;
+        }
+
+        .select2-container .select2-selection__arrow {
+            height: 40px;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 text-gray-800 font-sans" x-data="calculatorApp()">
+
+    <div class="max-w-3xl mx-auto my-10 p-8 bg-white shadow-xl rounded-2xl border border-gray-100">
+        <h1 class="text-3xl font-bold text-slate-800 mb-1">Claim Calculator</h1>
+        <p class="text-sm text-slate-500 mb-8 font-medium">Anaesthetics (014A)</p>
+
+        <!-- Form -->
+        <div class="space-y-8">
+
+            <!-- Section: Patient -->
+            <div class="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                <h2 class="text-lg font-bold text-slate-700 mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                    Patient Vitals
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label
+                            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">DOB</label>
+                        <input type="date" x-model="form.patient.dob"
+                            class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2.5 border">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Weight
+                            (kg)</label>
+                        <input type="number" x-model.number="form.patient.weight" placeholder="e.g. 85"
+                            class="block w-full border-gray-300 rounded-lg shadow-sm p-2.5 border">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Height
+                            (cm)</label>
+                        <input type="number" x-model.number="form.patient.height" placeholder="e.g. 175"
+                            class="block w-full border-gray-300 rounded-lg shadow-sm p-2.5 border">
+                    </div>
+                </div>
+                <!-- BMI Banner -->
+                <div
+                    class="mt-4 flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                    <span class="text-sm font-medium text-gray-600">Calculated BMI</span>
+                    <div class="flex items-center space-x-3">
+                        <span class="text-lg font-bold text-gray-900" x-text="calculateBMI()"></span>
+                        <span x-show="Number(calculateBMI()) >= 35"
+                            class="text-xs font-bold text-red-700 bg-red-100 px-2 py-1 rounded-full uppercase tracking-wider">High
+                            Risk (>35)</span>
+                        <span x-show="Number(calculateBMI()) < 35 && Number(calculateBMI()) > 0"
+                            class="text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded-full uppercase tracking-wider">Normal</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section: Procedure Times -->
+            <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+                <h2 class="text-lg font-bold text-indigo-900 mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Anaesthetic Duration
+                </h2>
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-xs font-semibold text-indigo-400 uppercase tracking-wide mb-1">Start
+                            Time</label>
+                        <input type="time" x-model="form.times.start"
+                            class="block w-full border-gray-300 rounded-lg shadow-sm p-2.5 border focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-indigo-400 uppercase tracking-wide mb-1">End
+                            Time</label>
+                        <input type="time" x-model="form.times.end"
+                            class="block w-full border-gray-300 rounded-lg shadow-sm p-2.5 border focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                </div>
+                <div class="mt-4 text-right">
+                    <span class="text-sm text-indigo-600 font-medium">Total Duration: </span>
+                    <span class="text-2xl font-bold text-indigo-900" x-text="calculateDuration() + ' min'"></span>
+                </div>
+            </div>
+
+            <!-- Modifiers & Flags -->
+            <div class="flex flex-col md:flex-row md:space-x-4 space-y-4 md:space-y-0">
+                <div class="flex-1 bg-red-50 p-4 rounded-xl border border-red-100 flex items-center justify-between cursor-pointer hover:bg-red-100 transition"
+                    @click="form.emergency_flag = !form.emergency_flag">
+                    <div>
+                        <h3 class="font-bold text-red-900">Emergency Case</h3>
+                        <p class="text-xs text-red-600">Modifier 0011 (+12.00 Units)</p>
+                    </div>
+                    <div
+                        class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" name="toggle" x-model="form.emergency_flag"
+                            class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-red-200"
+                            :class="{'right-0 border-red-600': form.emergency_flag, 'left-0': !form.emergency_flag}" />
+                        <label for="toggle"
+                            class="toggle-label block overflow-hidden h-6 rounded-full bg-red-200 cursor-pointer"></label>
+                    </div>
+                </div>
+
+                <div
+                    class="flex-1 bg-amber-50 p-4 rounded-xl border border-amber-100 flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-amber-900">PMB Multiplier</h3>
+                        <p class="text-xs text-amber-600">Prescribed Minimum Benefit Rate</p>
+                    </div>
+                    <select x-model.number="form.pmb_rate"
+                        class="block w-24 border-amber-300 rounded-lg shadow-sm p-2 border text-sm bg-white font-bold text-amber-900 focus:ring-amber-500 focus:border-amber-500">
+                        <option value="1.0">100%</option>
+                        <option value="2.0">200%</option>
+                        <option value="3.0">300%</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Diagnostics -->
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-2">Diagnoses (ICD-10)</label>
+                <select id="diagnosis-select" class="w-full" multiple style="width: 100%"></select>
+                <div class="mt-2 flex flex-wrap gap-2">
+                    <template x-for="icd in form.diagnoses">
+                        <span
+                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <span x-text="icd"></span>
+                            <button @click="removeDiagnosis(icd)"
+                                class="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full text-blue-400 hover:bg-blue-200 hover:text-blue-500 focus:outline-none">×</button>
+                        </span>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Procedures -->
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-2">Procedures & Tariffs</label>
+                <select id="procedure-select" class="w-full" multiple style="width: 100%"></select>
+
+                <div class="mt-4 space-y-3">
+                    <template x-for="(proc, index) in form.procedures" :key="index">
+                        <div
+                            class="flex items-center justify-between bg-white border border-gray-200 p-3 rounded-lg shadow-sm hover:shadow-md transition">
+                            <div class="flex-1 min-w-0 pr-4">
+                                <div class="flex items-center">
+                                    <span class="text-sm font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded mr-2"
+                                        x-text="proc.code"></span>
+                                    <p class="text-sm font-medium text-gray-600 truncate" x-text="proc.desc"></p>
+                                </div>
+                            </div>
+                            <button @click="removeProcedure(index)" class="text-gray-400 hover:text-red-500 transition">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                                    </path>
+                                </svg>
+                            </button>
+                        </div>
+                    </template>
+                    <div x-show="form.procedures.length === 0"
+                        class="text-center py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                        <p class="text-sm text-gray-500">No procedures added yet.</p>
+                        <p class="text-xs text-gray-400 mt-1">Search above to add tariffs.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit -->
+            <button @click="submitCalculation" :disabled="loading"
+                class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                <span x-show="!loading" class="flex items-center justify-center">
+                    Calculate Estimate
+                    <svg class="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </span>
+                <span x-show="loading" class="flex items-center justify-center">
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg"
+                        fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                        </circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                        </path>
+                    </svg>
+                    Processing Quote...
+                </span>
+            </button>
+
+        </div>
+
+        <!-- Results Overlay -->
+        <div x-show="result" x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0"
+            class="mt-10 pt-8 border-t border-gray-200">
+            <div class="bg-green-50 border border-green-200 rounded-2xl p-8 shadow-sm relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-10">
+                    <svg class="w-32 h-32 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+
+                <div class="relative z-10">
+                    <h3 class="text-sm font-bold text-green-800 uppercase tracking-widest mb-1">Total Estimated Claim
+                    </h3>
+                    <div class="text-5xl font-black text-green-700 mb-6 tracking-tight">
+                        R <span x-text="formatCurrency(result?.total_amount)"></span>
+                    </div>
+
+                    <div class="flex flex-wrap gap-4 mb-6">
+                        <div class="bg-white px-4 py-2 rounded-lg shadow-sm border border-green-100">
+                            <span class="block text-xs font-bold text-gray-500 uppercase">PMB Status</span>
+                            <span class="font-bold text-lg" :class="result?.is_pmb ? 'text-red-600' : 'text-gray-600'"
+                                x-text="result?.is_pmb ? 'YES' : 'NO'"></span>
+                        </div>
+                        <div class="bg-white px-4 py-2 rounded-lg shadow-sm border border-green-100">
+                            <span class="block text-xs font-bold text-gray-500 uppercase">Total Units</span>
+                            <span class="font-bold text-lg text-gray-800"
+                                x-text="(result?.total_amount / 25.106).toFixed(1) + ' (est)'"></span>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 bg-green-900 bg-opacity-5 rounded-lg p-4">
+                        <h4 class="text-xs font-bold text-green-900 uppercase mb-3 flex items-center">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Calculation Breakdown
+                        </h4>
+                        <div class="font-mono text-xs text-green-800Space-y-1 max-h-60 overflow-y-auto">
+                            <template x-for="log in result?.trace">
+                                <div class="border-b border-green-100 pb-1 mb-1 last:border-0 last:mb-0">> <span
+                                        x-text="log"></span></div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="error" x-transition class="mt-8 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                            clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-red-800">Calculation Error</h3>
+                    <div class="mt-2 text-sm text-red-700">
+                        <p x-text="error"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function calculatorApp() {
+            return {
+                loading: false,
+                result: null,
+                error: null,
+                form: {
+                    discipline: '014A',
+                    role: '03',
+                    times: { start: '08:00', end: '09:00' },
+                    patient: { dob: '1990-01-01', weight: 70, height: 170 },
+                    emergency_flag: false,
+                    pmb_rate: 1.0,
+                    diagnoses: [], // Strings
+                    procedures: [] // Objects
+                },
+
+                init() {
+                    const self = this;
+
+                    // Diagnoses Select2
+                    $('#diagnosis-select').select2({
+                        ajax: {
+                            url: '/api/search.php',
+                            dataType: 'json',
+                            delay: 250,
+                            data: (params) => ({ type: 'icd10', term: params.term }),
+                            processResults: (data) => ({ results: data.results }),
+                            cache: true
+                        },
+                        placeholder: 'Search ICD-10 (e.g. Flu, O80...)',
+                        minimumInputLength: 2,
+                    }).on('select2:select', function (e) {
+                        let data = e.params.data;
+                        if (!self.form.diagnoses.includes(data.id)) {
+                            self.form.diagnoses.push(data.id);
+                            $(this).val(null).trigger('change'); // Clear input
+                        }
+                    });
+
+                    // Procedures Select2
+                    $('#procedure-select').select2({
+                        ajax: {
+                            url: '/api/search.php',
+                            dataType: 'json',
+                            delay: 250,
+                            data: (params) => ({ type: 'tariff', term: params.term }),
+                            processResults: (data) => ({ results: data.results }),
+                            cache: true
+                        },
+                        placeholder: 'Search Procedures (e.g. 2615...)',
+                        minimumInputLength: 2,
+                    }).on('select2:select', function (e) {
+                        let data = e.params.data;
+                        if (!self.form.procedures.some(p => p.code === data.id)) {
+                            self.form.procedures.push({
+                                code: data.id,
+                                desc: data.description || data.text
+                            });
+                            $(this).val(null).trigger('change'); // Clear input
+                        }
+                    });
+                },
+
+                removeProcedure(index) {
+                    this.form.procedures.splice(index, 1);
+                },
+
+                removeDiagnosis(id) {
+                    this.form.diagnoses = this.form.diagnoses.filter(d => d !== id);
+                },
+
+                calculateBMI() {
+                    const w = this.form.patient.weight;
+                    const h = this.form.patient.height / 100;
+                    if (w > 0 && h > 0) return (w / (h * h)).toFixed(1);
+                    return '0.0';
+                },
+
+                calculateDuration() {
+                    if (!this.form.times.start || !this.form.times.end) return 0;
+                    const toMin = (t) => { const [h, m] = t.split(':'); return parseInt(h) * 60 + parseInt(m); };
+                    let diff = toMin(this.form.times.end) - toMin(this.form.times.start);
+                    if (diff < 0) diff += 1440;
+                    return diff;
+                },
+
+                formatCurrency(amount) {
+                    if (amount === undefined || amount === null) return '0.00';
+                    return new Intl.NumberFormat('en-ZA', { style: 'decimal', minimumFractionDigits: 2 }).format(amount);
+                },
+
+                async submitCalculation() {
+                    this.loading = true;
+                    this.error = null;
+                    this.result = null;
+
+                    const payload = {
+                        discipline: this.form.discipline,
+                        role: this.form.role,
+                        times: this.form.times,
+                        patient: {
+                            dob: this.form.patient.dob,
+                            weight_kg: Number(this.form.patient.weight),
+                            height_cm: Number(this.form.patient.height)
+                        },
+                        emergency_flag: this.form.emergency_flag,
+                        pmb_requested_rate: Number(this.form.pmb_rate),
+                        diagnoses: [...this.form.diagnoses], // Copy
+                        procedures: this.form.procedures.map(p => ({
+                            code: p.code,
+                        }))
+                    };
+
+                    // Auto-inject Time Unit 0023 for tariff logic if not present
+                    if (!payload.procedures.some(p => p.code === '0023')) {
+                        payload.procedures.push({ code: '0023' });
+                    }
+
+                    try {
+                        const response = await fetch('/api/calculate.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            this.result = data.data;
+                        } else {
+                            this.error = data.error || 'Server error';
+                        }
+                    } catch (err) {
+                        this.error = "Request Failed: " + err.message;
+                    } finally {
+                        this.loading = false;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

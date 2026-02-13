@@ -4,7 +4,8 @@ namespace Service;
 
 use Database\Database;
 use Domain\CalculationContext;
-use Domain\DisciplineStrategy;
+use Domain\DisciplineStrategy as StrategyInterface;
+use Domain\Strategies\AnaestheticStrategy014A;
 use RuntimeException;
 
 /**
@@ -19,7 +20,7 @@ use RuntimeException;
 class TariffCalculator
 {
     /**
-     * @var DisciplineStrategy[] List of registered strategies.
+     * @var StrategyInterface[] List of registered strategies.
      */
     private array $strategies = [];
 
@@ -29,22 +30,33 @@ class TariffCalculator
     private Database $db;
 
     /**
+     * @var MedpraxService Service for fetching tariff prices.
+     */
+    private MedpraxService $medpraxService;
+
+    /**
      * TariffCalculator constructor.
      *
      * @param Database $db Dependency injection of the database connection.
+     * @param MedpraxService $medpraxService Service for MSR lookups.
      */
-    public function __construct(Database $db)
+    public function __construct(Database $db, MedpraxService $medpraxService)
     {
         $this->db = $db;
+        $this->medpraxService = $medpraxService;
+
+        // Auto-Register Core Strategy for demo purposes
+        // Note: In real app, DI container handles this registration
+        $this->registerStrategy(new AnaestheticStrategy014A($db, $medpraxService));
     }
 
     /**
      * Register a new strategy.
      *
-     * @param DisciplineStrategy $strategy
+     * @param StrategyInterface $strategy
      * @return void
      */
-    public function registerStrategy(DisciplineStrategy $strategy): void
+    public function registerStrategy(StrategyInterface $strategy): void
     {
         $this->strategies[] = $strategy;
     }
@@ -58,6 +70,9 @@ class TariffCalculator
      */
     public function calculate(array $requestPayload): array
     {
+        // Hydrate prices if missing
+        $requestPayload = $this->hydratePrices($requestPayload);
+
         $context = new CalculationContext($requestPayload);
 
         // Stage 1: Classifier (Find Strategy)
@@ -84,6 +99,66 @@ class TariffCalculator
     }
 
     /**
+     * Fetch MSRs for procedures if they are missing in the payload.
+     *
+     * @param array $payload
+     * @return array
+     */
+    private function hydratePrices(array $payload): array
+    {
+        $procedures = $payload['procedures'] ?? [];
+        if (empty($procedures)) {
+            return $payload;
+        }
+
+        $codesToLookup = [];
+        $procedureIndices = []; 
+
+        foreach ($procedures as $idx => $proc) {
+            // Check if Msrs is empty or invalid
+            $hasValidMsr = !empty($proc['msrs']) && (isset($proc['msrs']['pageResult']) || is_array($proc['msrs']));
+            
+            if (!$hasValidMsr) {
+                $codesToLookup[] = $proc['code'] ?? null;
+                if (isset($proc['code'])) {
+                    $procedureIndices[$proc['code']][] = $idx;
+                }
+            }
+        }
+
+        $codesToLookup = array_values(array_filter(array_unique($codesToLookup)));
+
+        if (empty($codesToLookup)) {
+            return $payload;
+        }
+
+        $discipline = $payload['discipline'] ?? '014A';
+        $planOption = $payload['plan_option'] ?? '39I';
+
+        try {
+            $result = $this->medpraxService->getTariffMsr('medical', $codesToLookup, $planOption, $discipline);
+            
+            if ($result && isset($result->msrs->pageResult)) {
+                foreach ($result->msrs->pageResult as $msrItem) {
+                    $code = $msrItem->tariffCode->code ?? null;
+                    if ($code && isset($procedureIndices[$code])) {
+                        // Apply this MSR to all procedure entries with this code
+                        foreach ($procedureIndices[$code] as $procIdx) {
+                            $payload['procedures'][$procIdx]['msrs'] = [
+                                'pageResult' => [$msrItem]
+                            ];
+                        }
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            error_log("TariffCalculator Warning: Failed to hydrate prices: " . $e->getMessage());
+        }
+
+        return $payload;
+    }
+
+    /**
      * Save the calculation trace to the database.
      *
      * @param array $request
@@ -106,7 +181,6 @@ class TariffCalculator
             ]);
         } catch (\Exception $e) {
             // Silently fail logging in production, or handle error.
-            // For now, we just don't crash the calculation.
             error_log("Audit Log Failed: " . $e->getMessage());
         }
     }

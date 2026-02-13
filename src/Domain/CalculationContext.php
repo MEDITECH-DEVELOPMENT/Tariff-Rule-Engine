@@ -49,6 +49,11 @@ class CalculationContext
     public array $procedures;
 
     /**
+     * @var float Requested PMB rate multiplier (e.g. 3.0). Default 1.0.
+     */
+    public float $pmbRequestedRate;
+
+    /**
      * CalculationContext constructor.
      *
      * @param array $data Decoded JSON payload.
@@ -62,6 +67,7 @@ class CalculationContext
         $this->emergencyFlag = $data['emergency_flag'] ?? false;
         $this->diagnoses = $data['diagnoses'] ?? [];
         $this->procedures = $data['procedures'] ?? [];
+        $this->pmbRequestedRate = (float)($data['pmb_requested_rate'] ?? 1.0);
     }
 
     /**
