@@ -165,8 +165,11 @@ class MedpraxService
         return null;
     }
 
-    public function searchIcd10ByTerm(string $term, int $limit = 20)
+    public function searchIcd10ByTerm(string $term, int $limit = 20, ?string $serviceDate = null)
     {
+        // Extract year from service date/year input
+        $year = $serviceDate ? date('Y', strtotime($serviceDate)) : $this->config->apiYear;
+        
         $body = json_encode([
             "sortKey" => "code",
             "filters" => [
@@ -189,7 +192,8 @@ class MedpraxService
                 "/icd10s/search/1/{$limit}",
                 $body,
                 'PRODUCT',
-                'POST'
+                'POST',
+                $year
             );
             return json_decode($response);
         } catch (\Exception $e) {
@@ -198,9 +202,12 @@ class MedpraxService
         }
     }
 
-    public function searchTariffs(string $term, int $limit = 20)
+    public function searchTariffs(string $term, int $limit = 20, ?string $serviceDate = null)
     {
         $type = 'medical'; 
+        // Extract year from service date/year input
+        $year = $serviceDate ? date('Y', strtotime($serviceDate)) : $this->config->apiYear;
+        
         $body = json_encode([
             "sortKey" => "code",
             "filters" => [
@@ -223,7 +230,8 @@ class MedpraxService
                 "/tariffcodes/{$type}/search/1/{$limit}", 
                 $body,
                 'TARIFF',
-                'POST'
+                'POST',
+                $year
             );
             return json_decode($response);
         } catch (\Exception $e) {

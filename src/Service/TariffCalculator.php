@@ -134,9 +134,10 @@ class TariffCalculator
 
         $discipline = $payload['discipline'] ?? '014A';
         $planOption = $payload['plan_option'] ?? '39I';
+        $serviceDate = $payload['service_date'] ?? null;
 
         try {
-            $result = $this->medpraxService->getTariffMsr('medical', $codesToLookup, $planOption, $discipline);
+            $result = $this->medpraxService->getTariffMsr('medical', $codesToLookup, $planOption, $discipline, $serviceDate);
             
             if ($result && isset($result->msrs->pageResult)) {
                 foreach ($result->msrs->pageResult as $msrItem) {

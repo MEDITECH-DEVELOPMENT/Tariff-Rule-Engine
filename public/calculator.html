@@ -264,68 +264,21 @@
                         </div>
                     </div>
 
-                    <!-- Line Items Table -->
-                    <div class="mt-6 bg-white rounded-lg border border-green-100 overflow-hidden shadow-sm">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-green-50">
-                                <tr>
-                                    <th
-                                        class="px-4 py-3 text-left text-xs font-bold text-green-800 uppercase tracking-wider">
-                                        Code</th>
-                                    <th
-                                        class="px-4 py-3 text-left text-xs font-bold text-green-800 uppercase tracking-wider">
-                                        Description</th>
-                                    <th
-                                        class="px-4 py-3 text-right text-xs font-bold text-green-800 uppercase tracking-wider">
-                                        Units</th>
-                                    <th
-                                        class="px-4 py-3 text-right text-xs font-bold text-green-800 uppercase tracking-wider">
-                                        Price (R)</th>
-                                    <th
-                                        class="px-4 py-3 text-right text-xs font-bold text-green-800 uppercase tracking-wider">
-                                        Total (R)</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100">
-                                <template x-for="item in result?.line_items">
-                                    <tr class="hover:bg-gray-50">
-                                        <td class="px-4 py-2 whitespace-nowrap text-xs font-bold text-gray-700"
-                                            x-text="item.code"></td>
-                                        <td class="px-4 py-2 text-xs text-gray-600" x-text="item.description"></td>
-                                        <td class="px-4 py-2 whitespace-nowrap text-right text-xs text-gray-600"
-                                            x-text="item.units > 0 ? item.units : '-'"></td>
-                                        <td class="px-4 py-2 whitespace-nowrap text-right text-xs text-gray-600"
-                                            x-text="item.unit_price > 0 ? formatCurrency(item.unit_price) : '-'"></td>
-                                        <td class="px-4 py-2 whitespace-nowrap text-right text-xs font-bold text-gray-900"
-                                            x-text="formatCurrency(item.total)"></td>
-                                    </tr>
-                                </template>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- Logic Trace -->
-                    <div class="mt-4 pt-4 border-t border-green-100">
-                        <div x-data="{ expanded: false }">
-                            <button @click="expanded = !expanded"
-                                class="text-xs font-bold text-green-700 hover:text-green-900 flex items-center focus:outline-none">
-                                <svg class="w-4 h-4 mr-1 transition-transform" :class="{'rotate-90': expanded}"
-                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9 5l7 7-7 7"></path>
-                                </svg>
-                                Show Logic Trace
-                            </button>
-                            <div x-show="expanded"
-                                class="mt-2 font-mono text-xs text-gray-600 space-y-1 bg-gray-50 p-2 rounded max-h-40 overflow-y-auto">
-                                <template x-for="log in result?.trace">
-                                    <div class="border-b border-gray-100 pb-1 mb-1 last:border-0 last:mb-0">> <span
-                                            x-text="log"></span></div>
-                                </template>
-                            </div>
+                    <div class="mt-6 bg-green-900 bg-opacity-5 rounded-lg p-4">
+                        <h4 class="text-xs font-bold text-green-900 uppercase mb-3 flex items-center">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Calculation Breakdown
+                        </h4>
+                        <div class="font-mono text-xs text-green-800Space-y-1 max-h-60 overflow-y-auto">
+                            <template x-for="log in result?.trace">
+                                <div class="border-b border-green-100 pb-1 mb-1 last:border-0 last:mb-0">> <span
+                                        x-text="log"></span></div>
+                            </template>
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>

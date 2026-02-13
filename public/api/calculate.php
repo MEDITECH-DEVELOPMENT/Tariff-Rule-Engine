@@ -6,7 +6,7 @@
  * Returns calculated results.
  */
 
-require __DIR__ . '/../vendor/autoload.php';
+require __DIR__ . '/../../vendor/autoload.php';
 
 use Service\TariffCalculator;
 use Service\MedpraxConfig;

@@ -27,6 +27,11 @@ class CalculationResult
     private array $trace = [];
 
     /**
+     * @var array[] List of line items contributing to the total.
+     */
+    private array $lineItems = [];
+
+    /**
      * Add an amount to the total.
      *
      * @param float $amount
@@ -35,6 +40,26 @@ class CalculationResult
     public function addAmount(float $amount): void
     {
         $this->totalAmount += $amount;
+    }
+
+    /**
+     * Add a structured line item.
+     * 
+     * @param string $code
+     * @param string $description
+     * @param float $units
+     * @param float $unitPrice
+     * @param float $total
+     */
+    public function addLineItem(string $code, string $description, float $units, float $unitPrice, float $total): void
+    {
+        $this->lineItems[] = [
+            'code' => $code, // e.g. '0023' or '2615'
+            'description' => $description,
+            'units' => round($units, 2),
+            'unit_price' => round($unitPrice, 2),
+            'total' => round($total, 2)
+        ];
     }
 
     /**
@@ -69,6 +94,7 @@ class CalculationResult
         return [
             'total_amount' => round($this->totalAmount, 2),
             'is_pmb' => $this->isPmb,
+            'line_items' => $this->lineItems,
             'trace' => $this->trace,
         ];
     }

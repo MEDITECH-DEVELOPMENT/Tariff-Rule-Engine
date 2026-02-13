@@ -3,11 +3,11 @@
  * API Search Endpoint for Frontend
  * 
  * Usage:
- * GET /api/search.php?type=icd10&term=flu
- * GET /api/search.php?type=tariff&term=consultation
+ * GET /api/search.php?type=icd10&term=flu&date=2024-01-01
+ * GET /api/search.php?type=tariff&term=consultation&date=2024-01-01
  */
 
-require __DIR__ . '/../vendor/autoload.php';
+require __DIR__ . '/../../vendor/autoload.php';
 
 use Service\MedpraxConfig;
 use Service\MedpraxService;
@@ -19,6 +19,7 @@ header('Access-Control-Allow-Origin: *');
 // Basic Input Validation
 $type = $_GET['type'] ?? '';
 $term = $_GET['term'] ?? '';
+$date = $_GET['date'] ?? null; // Optional Service Date
 
 if (empty($type) || empty($term)) {
     echo json_encode(['error' => 'Missing parameters: type and term are required.']);
@@ -38,7 +39,7 @@ try {
     $data = [];
 
     if ($type === 'icd10') {
-        $response = $service->searchIcd10ByTerm($term, $limit);
+        $response = $service->searchIcd10ByTerm($term, $limit, $date);
         if ($response && isset($response->icd10s->pageResult)) {
             // Transform for frontend dropdown (Select2 style)
             foreach ($response->icd10s->pageResult as $item) {
@@ -59,7 +60,7 @@ try {
         }
     } 
     elseif ($type === 'tariff') {
-        $response = $service->searchTariffs($term, $limit);
+        $response = $service->searchTariffs($term, $limit, $date);
         
         $list = [];
         if (isset($response->tariffCodes->pageResult)) {
@@ -71,7 +72,6 @@ try {
             $desc = $item->description ?? $item->longDescription ?? '';
             
             if ($code) {
-                // Shorten description for dropdown if needed? No, user wants detail.
                 $data[] = [
                     'id' => $code,
                     'text' => "$code - $desc",
