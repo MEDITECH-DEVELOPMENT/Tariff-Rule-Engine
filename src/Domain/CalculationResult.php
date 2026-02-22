@@ -17,6 +17,10 @@ class CalculationResult
     private array $lineItems = [];
     private string $serviceDate = '';
     private ?array $mainProcedure = null;
+    private array $diagnoses = [];
+    private string $doctorPcns = '';
+    private string $doctorName = '';
+    private string $transmissionRef = '';
 
     public function addAmount(float $amount): void
     {
@@ -55,6 +59,19 @@ class CalculationResult
         }
     }
 
+    public function setDiagnoses(array $diagnoses): void {
+        $this->diagnoses = $diagnoses;
+    }
+
+    public function setDoctorInfo(string $pcns, string $name): void {
+        $this->doctorPcns = $pcns;
+        $this->doctorName = $name;
+    }
+
+    public function setTransmissionRef(string $ref): void {
+        $this->transmissionRef = $ref;
+    }
+
     public function toArray(): array
     {
         $response = [
@@ -75,44 +92,104 @@ class CalculationResult
     private function generateEdiPayload(): string
     {
         $lines = [];
-        $seq = 1;
-        $ref = '87272'; // Placeholder
+        $ref = $this->transmissionRef ?: '87272';
         $date = $this->serviceDate ?: date('Ymd');
+        $pcns = $this->doctorPcns ?: '0000000';
+        $docName = $this->doctorName ?: 'UNKNOWN';
         
-        // T and Z Lines
+        // DR Record - Doctor (Anaesthetist)
+        // DR|{PCNS}|{Name}|{Type}|{CMS Reg}|{CMS Type}||||
+        // Type: 03 = Anaesthetist
+        // CMS Type: 01 = HPCSA
+        $lines[] = sprintf(
+            "DR|%s|%s|03||01||||",
+            $pcns,
+            substr($docName, 0, 30)
+        );
+        
+        // D Records - Diagnoses (ICD-10)
+        // D|{Doctor Type}|{Code Type}|{Code}|{Description}|{Extended}|
+        // Doctor Type: 01 = Attending
+        // Code Type: 01 = ICD10
+        // Extended: 01 = Primary, 02 = Secondary
+        foreach ($this->diagnoses as $idx => $icd10) {
+            $extended = ($idx === 0) ? '01' : '02'; // First is primary
+            $lines[] = sprintf(
+                "D|01|01|%s||%s|",
+                $icd10,
+                $extended
+            );
+        }
+        
+        // T and Z Records - Treatment Lines
+        $seq = 1;
+        $totalCents = 0;
+        
         foreach ($this->lineItems as $item) {
             $code = $item['code'];
-            $desc = $item['description'];
-            $cents = (string)number_format($item['total'] * 100, 0, '', '');
+            $desc = substr($item['description'], 0, 70);
+            $cents = (int)round($item['total'] * 100);
+            $totalCents += $cents;
             
-            // T Line Logic: 
-            // T|{Seq}|{Date}|{RefT}|02|100|06|{Code}|01|||01|{Desc}|Y||||||||{Ref}||21|
-            // "100" = Quantity 1.00 - Standard for single procedure occurrence.
-            // "06" = Standard Unit Value Type? (Using example literal '06')
-            // "02" = Line Type? (Using '02')
-            // "01" = Modifier Count? Or just '01'. Using example literal '01'.
-            // "21" = Service Type? Using literal '21'.
+            // Determine treatment type and quantity
+            // For modifiers (0xxx codes), use type 03
+            // For tariffs, use type 02
+            $treatmentType = (strlen($code) === 4 && $code[0] === '0') ? '03' : '02';
             
-            $tLine = sprintf(
-                "T|%d|%s|%s|||%dT%s|02|100|06|%s|01|||01|%s|Y||||||||%s||21|",
-                $seq, 
-                $date, $date,
-                $seq, $ref,
+            // Quantity: 100 = 1.00 unit (2 decimal places implied)
+            $quantity = (int)round($item['units'] * 100);
+            
+            // Unit type: 06 = Unit (default)
+            $unitType = '06';
+            
+            // T Record
+            // T|{Seq}|{Start}|{End}|{Auth}|{Script}|{LineRef}|{Type}|{Qty}|{UnitType}|{Code}|{CodeType}|{ModType}|{NAPPI}|{RateInd}|{Desc}|{PMB}|{ScriptDate}|{BenefitType}|{HospType}|{LabPCNS}|{LabRef}|{LabName}|{ResubCode}|{OrigClaim}|{OrigDate}|{PlaceOfService}|
+            $lines[] = sprintf(
+                "T|%d|%s|%s|||%dT%s|%s|%d|%s|%s|01|||01|%s|N||||||||%s||21|",
+                $seq,
+                $date,
+                $date,
+                $seq,
+                $ref,
+                $treatmentType,
+                $quantity,
+                $unitType,
                 $code,
                 $desc,
                 $ref
             );
-            $lines[] = $tLine;
-
-            // Z Line Logic: Z|{Total}|{Total}||||||||{Total}||||||{Total}||
-            $zLine = sprintf(
-                "Z|%s|%s||||||||%s||||||%s||",
-                $cents, $cents, $cents, $cents
+            
+            // Z Record - Treatment Financial
+            // Z|{Net}|{Gross}|{DispFee}|{ContFee}|{ExcessTime}|{CallOut}|{CopyFee}|{DelivFee}|{Contract}|{Claimed}|{Discount}|{Levy}|{MMAP}|{CoPay}|{PatLiable}|{FundLiable}|{MemberReimb}|
+            $lines[] = sprintf(
+                "Z|%d|%d||||||||%d||||||%d||",
+                $cents,
+                $cents,
+                $cents,
+                $cents
             );
-            $lines[] = $zLine;
-
+            
             $seq++;
         }
+        
+        // F Record - Claim Financial Summary
+        // F|{Net}|{Gross}|{Claimed}|{Discount}|{Levy}|{MMAP}|{CoPay}|{Receipt}|{PatLiable}|{FundLiable}|{MemberReimb}|
+        $lines[] = sprintf(
+            "F|%d|%d|%d|||||||%d||",
+            $totalCents,
+            $totalCents,
+            $totalCents,
+            $totalCents
+        );
+        
+        // E Record - Footer
+        // E|{TransmissionRef}|{ClaimCount}|{TotalValue}|
+        $lines[] = sprintf(
+            "E|%s|1|%d|",
+            $ref,
+            $totalCents
+        );
+        
         return implode("\n", $lines);
     }
 }

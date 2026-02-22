@@ -44,6 +44,12 @@ class AnaestheticStrategy014A implements DisciplineStrategy
         $result = new CalculationResult();
         $result->log("Starting 014A Strategy Calculation.");
         
+        // Set EDI metadata
+        $result->setServiceDate($context->serviceDate);
+        $result->setDiagnoses($context->diagnoses);
+        $result->setDoctorInfo('0000000', 'ANAESTHETIST'); // Placeholder - should come from context
+        $result->setTransmissionRef(uniqid('TXN'));
+        
         // Log main procedure context if provided
         if ($context->mainProcedure) {
             $mainCode = $context->mainProcedure['code'] ?? 'Unknown';

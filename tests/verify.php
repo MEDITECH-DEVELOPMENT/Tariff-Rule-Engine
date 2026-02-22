@@ -4,6 +4,8 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use Database\Database;
 use Service\TariffCalculator;
+use Service\MedpraxService;
+use Service\MedpraxConfig;
 use Domain\Strategies\AnaestheticStrategy014A;
 
 // Mock the input from ARCHITECTURE.md
@@ -30,8 +32,9 @@ echo "------------------------------------------------\n";
 try {
     // 1. Setup (using real DB connection if available, or it will use fallbacks in logic)
     $db = new Database();
-    $calculator = new TariffCalculator($db);
-    $calculator->registerStrategy(new AnaestheticStrategy014A($db));
+    $medpraxConfig = new MedpraxConfig();
+    $medpraxService = new MedpraxService($medpraxConfig);
+    $calculator = new TariffCalculator($db, $medpraxService);
 
     // 2. Execute
     $response = $calculator->calculate($request);
