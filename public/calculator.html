@@ -158,6 +158,37 @@
                 </div>
             </div>
 
+            <!-- Main Procedure -->
+            <div class="bg-purple-50 p-6 rounded-xl border border-purple-200">
+                <h2 class="text-lg font-bold text-purple-900 mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                    </svg>
+                    Main Surgical Procedure
+                </h2>
+                <select id="main-procedure-select" class="w-full" style="width: 100%"></select>
+                <p class="text-xs text-purple-600 mt-2">The primary surgical procedure being performed (optional but recommended)</p>
+                
+                <div x-show="form.main_procedure" class="mt-4 bg-white border border-purple-200 p-4 rounded-lg shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1 min-w-0 pr-4">
+                            <div class="flex items-center">
+                                <span class="text-sm font-bold text-purple-900 bg-purple-100 px-3 py-1 rounded mr-3"
+                                    x-text="form.main_procedure?.code"></span>
+                                <p class="text-sm font-medium text-gray-700" x-text="form.main_procedure?.description"></p>
+                            </div>
+                        </div>
+                        <button @click="clearMainProcedure()" class="text-gray-400 hover:text-red-500 transition">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Diagnostics -->
             <div>
                 <label class="block text-sm font-bold text-gray-700 mb-2">Diagnoses (ICD-10)</label>
@@ -176,7 +207,8 @@
 
             <!-- Procedures -->
             <div>
-                <label class="block text-sm font-bold text-gray-700 mb-2">Procedures & Tariffs</label>
+                <label class="block text-sm font-bold text-gray-700 mb-2">Anaesthetic Add-ons</label>
+                <p class="text-xs text-gray-500 mb-2">Only add anaesthetic add-on codes (e.g., 0038, 0039, 1120, 1221, 2799). Do NOT include auto-calculated modifiers (0023, 0036, 0011, 0018).</p>
                 <select id="procedure-select" class="w-full" multiple style="width: 100%"></select>
 
                 <div class="mt-4 space-y-3">
@@ -313,6 +345,7 @@
                     discipline: '014A',
                     role: '03',
                     service_date: new Date().toISOString().split('T')[0],
+                    main_procedure: null, // Object: {code, description}
                     times: { start: '08:00', end: '09:00' },
                     patient: { dob: '1990-01-01', weight: 70, height: 170 },
                     emergency_flag: false,
@@ -323,6 +356,34 @@
 
                 init() {
                     const self = this;
+
+                    // Main Procedure Select2
+                    $('#main-procedure-select').select2({
+                        ajax: {
+                            url: '/api/search.php',
+                            dataType: 'json',
+                            delay: 250,
+                            data: (params) => ({
+                                type: 'tariff',
+                                term: params.term,
+                                date: self.form.service_date
+                            }),
+                            processResults: (data) => ({ results: data.results }),
+                            cache: true
+                        },
+                        placeholder: 'Search for main surgical procedure (e.g., 2471, Hysterectomy...)',
+                        minimumInputLength: 2,
+                        allowClear: true
+                    }).on('select2:select', function (e) {
+                        let data = e.params.data;
+                        self.form.main_procedure = {
+                            code: data.id,
+                            description: data.description || data.text
+                        };
+                        $(this).val(null).trigger('change');
+                    }).on('select2:clear', function () {
+                        self.form.main_procedure = null;
+                    });
 
                     // Diagnoses Select2
                     $('#diagnosis-select').select2({
@@ -384,6 +445,11 @@
                     this.form.diagnoses = this.form.diagnoses.filter(d => d !== id);
                 },
 
+                clearMainProcedure() {
+                    this.form.main_procedure = null;
+                    $('#main-procedure-select').val(null).trigger('change');
+                },
+
                 calculateBMI() {
                     const w = this.form.patient.weight;
                     const h = this.form.patient.height / 100;
@@ -421,15 +487,18 @@
                         },
                         emergency_flag: this.form.emergency_flag,
                         pmb_requested_rate: Number(this.form.pmb_rate),
-                        diagnoses: [...this.form.diagnoses], // Copy
+                        diagnoses: [...this.form.diagnoses],
                         procedures: this.form.procedures.map(p => ({
                             code: p.code,
                         }))
                     };
 
-                    // Auto-inject Time Unit 0023 for tariff logic if not present
-                    if (!payload.procedures.some(p => p.code === '0023')) {
-                        payload.procedures.push({ code: '0023' });
+                    // Include main_procedure if set
+                    if (this.form.main_procedure) {
+                        payload.main_procedure = {
+                            code: this.form.main_procedure.code,
+                            description: this.form.main_procedure.description
+                        };
                     }
 
                     try {
