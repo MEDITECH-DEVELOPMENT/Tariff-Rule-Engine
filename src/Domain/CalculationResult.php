@@ -11,91 +11,96 @@ namespace Domain;
  */
 class CalculationResult
 {
-    /**
-     * @var float Total calculated amount in Rand.
-     */
     private float $totalAmount = 0.0;
-
-    /**
-     * @var bool Detailed flag if any diagnosis is PMB.
-     */
     private bool $isPmb = false;
-
-    /**
-     * @var string[] Audit trace of calculation steps.
-     */
     private array $trace = [];
-
-    /**
-     * @var array[] List of line items contributing to the total.
-     */
     private array $lineItems = [];
+    private string $serviceDate = '';
 
-    /**
-     * Add an amount to the total.
-     *
-     * @param float $amount
-     * @return void
-     */
     public function addAmount(float $amount): void
     {
         $this->totalAmount += $amount;
     }
 
-    /**
-     * Add a structured line item.
-     * 
-     * @param string $code
-     * @param string $description
-     * @param float $units
-     * @param float $unitPrice
-     * @param float $total
-     */
     public function addLineItem(string $code, string $description, float $units, float $unitPrice, float $total): void
     {
         $this->lineItems[] = [
-            'code' => $code, // e.g. '0023' or '2615'
-            'description' => $description,
+            'code' => $code,
+            'description' => substr($description, 0, 70), // Truncate safety
             'units' => round($units, 2),
             'unit_price' => round($unitPrice, 2),
             'total' => round($total, 2)
         ];
     }
 
-    /**
-     * Set the PMB status.
-     *
-     * @param bool $isPmb
-     * @return void
-     */
     public function setIsPmb(bool $isPmb): void
     {
         $this->isPmb = $isPmb;
     }
 
-    /**
-     * Add a log entry to the trace.
-     *
-     * @param string $message
-     * @return void
-     */
-    public function log(string $message): void
-    {
-        $this->trace[] = $message;
+    public function log(string $message): void { $this->trace[] = $message; }
+
+    public function setServiceDate(string $date): void {
+        $this->serviceDate = str_replace(['-', ':', ' '], '', $date);
+        if (strlen($this->serviceDate) >= 8) {
+            $this->serviceDate = substr($this->serviceDate, 0, 8); 
+        } else {
+            $this->serviceDate = date('Ymd');
+        }
     }
 
-    /**
-     * Convert the result to an array for JSON response.
-     *
-     * @return array
-     */
     public function toArray(): array
     {
         return [
             'total_amount' => round($this->totalAmount, 2),
             'is_pmb' => $this->isPmb,
             'line_items' => $this->lineItems,
+            'edi_payload' => $this->generateEdiPayload(), // Include Raw EDI
             'trace' => $this->trace,
         ];
+    }
+
+    private function generateEdiPayload(): string
+    {
+        $lines = [];
+        $seq = 1;
+        $ref = '87272'; // Placeholder
+        $date = $this->serviceDate ?: date('Ymd');
+        
+        // T and Z Lines
+        foreach ($this->lineItems as $item) {
+            $code = $item['code'];
+            $desc = $item['description'];
+            $cents = (string)number_format($item['total'] * 100, 0, '', '');
+            
+            // T Line Logic: 
+            // T|{Seq}|{Date}|{RefT}|02|100|06|{Code}|01|||01|{Desc}|Y||||||||{Ref}||21|
+            // "100" = Quantity 1.00 - Standard for single procedure occurrence.
+            // "06" = Standard Unit Value Type? (Using example literal '06')
+            // "02" = Line Type? (Using '02')
+            // "01" = Modifier Count? Or just '01'. Using example literal '01'.
+            // "21" = Service Type? Using literal '21'.
+            
+            $tLine = sprintf(
+                "T|%d|%s|%s|||%dT%s|02|100|06|%s|01|||01|%s|Y||||||||%s||21|",
+                $seq, 
+                $date, $date,
+                $seq, $ref,
+                $code,
+                $desc,
+                $ref
+            );
+            $lines[] = $tLine;
+
+            // Z Line Logic: Z|{Total}|{Total}||||||||{Total}||||||{Total}||
+            $zLine = sprintf(
+                "Z|%s|%s||||||||%s||||||%s||",
+                $cents, $cents, $cents, $cents
+            );
+            $lines[] = $zLine;
+
+            $seq++;
+        }
+        return implode("\n", $lines);
     }
 }
