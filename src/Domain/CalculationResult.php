@@ -16,6 +16,7 @@ class CalculationResult
     private array $trace = [];
     private array $lineItems = [];
     private string $serviceDate = '';
+    private ?array $mainProcedure = null;
 
     public function addAmount(float $amount): void
     {
@@ -37,6 +38,11 @@ class CalculationResult
     {
         $this->isPmb = $isPmb;
     }
+    
+    public function setMainProcedure(?array $mainProcedure): void
+    {
+        $this->mainProcedure = $mainProcedure;
+    }
 
     public function log(string $message): void { $this->trace[] = $message; }
 
@@ -51,13 +57,19 @@ class CalculationResult
 
     public function toArray(): array
     {
-        return [
+        $response = [
             'total_amount' => round($this->totalAmount, 2),
             'is_pmb' => $this->isPmb,
             'line_items' => $this->lineItems,
-            'edi_payload' => $this->generateEdiPayload(), // Include Raw EDI
+            'edi_payload' => $this->generateEdiPayload(),
             'trace' => $this->trace,
         ];
+        
+        if ($this->mainProcedure !== null) {
+            $response['main_procedure'] = $this->mainProcedure;
+        }
+        
+        return $response;
     }
 
     private function generateEdiPayload(): string

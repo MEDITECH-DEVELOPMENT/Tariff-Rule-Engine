@@ -43,6 +43,14 @@ class AnaestheticStrategy014A implements DisciplineStrategy
     {
         $result = new CalculationResult();
         $result->log("Starting 014A Strategy Calculation.");
+        
+        // Log main procedure context if provided
+        if ($context->mainProcedure) {
+            $mainCode = $context->mainProcedure['code'] ?? 'Unknown';
+            $mainDesc = $context->mainProcedure['description'] ?? '';
+            $result->log("Main Surgical Procedure: {$mainCode}" . ($mainDesc ? " - {$mainDesc}" : ""));
+            $result->setMainProcedure($context->mainProcedure);
+        }
 
         // 1. Determine Time Unit Rate (Rand per Unit)
         $timeUnitRate = 0.0;
@@ -108,12 +116,16 @@ class AnaestheticStrategy014A implements DisciplineStrategy
         $reducibleTotal = ($baseTimeUnits + ($context->emergencyFlag ? 12.00 : 0) + ($bmi >= 35 ? ($baseTimeUnits + ($context->emergencyFlag ? 12.00 : 0)) * 0.5 : 0)) * $timeUnitRate;
         $exemptTotal = 0.0;
 
-        // 3. Procedures
-        $codeMap = $this->getModifierMetadata(array_column($context->procedures, 'code'));
+        // 3. Procedures (Filter out auto-calculated modifiers)
+        $autoModifiers = ['0023', '0036', '0011', '0018']; // Auto-calculated, should not be in procedures
+        $validProcedures = array_filter($context->procedures, function($proc) use ($autoModifiers) {
+            return !in_array($proc['code'] ?? '', $autoModifiers);
+        });
         
-        foreach ($context->procedures as $proc) {
+        $codeMap = $this->getModifierMetadata(array_column($validProcedures, 'code'));
+        
+        foreach ($validProcedures as $proc) {
             $code = $proc['code'];
-            if ($code === '0023') continue;
 
             $msrList = $this->extractMsrList($proc);
             $msr = $msrList[0] ?? null;

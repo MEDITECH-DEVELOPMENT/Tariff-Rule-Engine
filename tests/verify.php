@@ -10,12 +10,16 @@ use Domain\Strategies\AnaestheticStrategy014A;
 $request = [
     "discipline" => "014A",
     "role" => "03",
+    "service_date" => "2026-02-22",
+    "main_procedure" => [
+        "code" => "2471",
+        "description" => "Hysterectomy"
+    ],
     "times" => ["start" => "07:53", "end" => "09:45"],
     "patient" => ["dob" => "1985-01-01", "weight_kg" => 109, "height_cm" => 170],
     "emergency_flag" => false,
     "diagnoses" => ["D25.9"],
     "procedures" => [
-        ["code" => "2471", "msrs" => [["priceGroupCode" => "MSR24", "numberOfUnits" => 6, "tariffRatePublished" => 126.74]]],
         ["code" => "1221", "msrs" => [["priceGroupCode" => "MSR24", "numberOfUnits" => 30, "tariffRatePublished" => 20.19]]]
     ]
 ];

@@ -121,15 +121,25 @@ expand_less
 {
   "discipline": "014A",
   "role": "03",
+  "service_date": "2026-02-22",
+  "main_procedure": {
+    "code": "2471",
+    "description": "Hysterectomy"
+  },
   "times": { "start": "07:53", "end": "09:45" },
   "patient": { "dob": "1985-01-01", "weight_kg": 109, "height_cm": 170 },
   "emergency_flag": false,
   "diagnoses": ["D25.9"],
   "procedures": [
-    { "code": "2471", "msrs": [{ "priceGroupCode": "MSR24", "numberOfUnits": 6, "tariffRatePublished": 126.74 }] },
-    { "code": "1221", "msrs": [{ "priceGroupCode": "MSR24", "numberOfUnits": 30, "tariffRatePublished": 20.19 }] }
+    { "code": "1221" }
   ]
 }
+
+Field Descriptions:
+- main_procedure (optional): The primary surgical procedure being performed. Provides clinical context.
+- procedures: Anaesthetic add-on codes only (e.g., 0038, 0039, 1120, 1221, 2799).
+- Auto-calculated modifiers (0023, 0036, 0011, 0018) should NOT be included - they are computed by the engine.
+- MSR pricing is auto-fetched from Medprax API if not provided in the payload.
 Output Response
 code
 JSON
@@ -139,11 +149,41 @@ expand_less
 {
   "total_amount": 11682.03,
   "is_pmb": true,
+  "main_procedure": {
+    "code": "2471",
+    "description": "Hysterectomy"
+  },
+  "line_items": [
+    {
+      "code": "0023",
+      "description": "Time Units (Base: 112 min)",
+      "units": 30.0,
+      "unit_price": 126.74,
+      "total": 3802.20
+    },
+    {
+      "code": "1221",
+      "description": "Anaesthetic add-on",
+      "units": 30.0,
+      "unit_price": 20.19,
+      "total": 605.70
+    },
+    {
+      "code": "0036",
+      "description": "GP Reduction (Duration > 1hr)",
+      "units": 0,
+      "unit_price": 0,
+      "total": -760.44
+    }
+  ],
+  "edi_payload": "T|1|20260222|20260222|||1T87272|02|100|06|0023|01|||01|Time Units|Y||||||||87272||21|\nZ|380220|380220||||||||380220||||||380220||",
   "trace": [
+    "Starting 014A Strategy Calculation.",
+    "Main Surgical Procedure: 2471 - Hysterectomy",
     "Duration: 112 mins. Base Time Units: 20.00.",
     "BMI 37.7 detected. Modifier 0018: +10.00 units added to Time.",
-    "Modifier 0036 applied: Reducible bucket (2471 + 0023) multiplied by 0.8.",
-    "Exempt code 1221 identified: Billed at 100% of JSON units.",
+    "Modifier 0036 applied: -R760.44",
+    "Exempt code 1221 identified: Billed at 100%.",
     "Diagnosis D25.9 identified as PMB: Alert triggered."
   ]
 }

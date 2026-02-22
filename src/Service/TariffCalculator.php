@@ -99,7 +99,7 @@ class TariffCalculator
     }
 
     /**
-     * Fetch MSRs for procedures if they are missing in the payload.
+     * Fetch MSRs for procedures and main_procedure if they are missing in the payload.
      *
      * @param array $payload
      * @return array
@@ -107,15 +107,23 @@ class TariffCalculator
     private function hydratePrices(array $payload): array
     {
         $procedures = $payload['procedures'] ?? [];
-        if (empty($procedures)) {
-            return $payload;
+        $mainProcedure = $payload['main_procedure'] ?? null;
+        
+        $codesToLookup = [];
+        $procedureIndices = [];
+        $needMainProcedureHydration = false;
+
+        // Check main_procedure
+        if ($mainProcedure && isset($mainProcedure['code'])) {
+            $hasValidMsr = !empty($mainProcedure['msrs']) && (isset($mainProcedure['msrs']['pageResult']) || is_array($mainProcedure['msrs']));
+            if (!$hasValidMsr) {
+                $codesToLookup[] = $mainProcedure['code'];
+                $needMainProcedureHydration = true;
+            }
         }
 
-        $codesToLookup = [];
-        $procedureIndices = []; 
-
+        // Check procedures
         foreach ($procedures as $idx => $proc) {
-            // Check if Msrs is empty or invalid
             $hasValidMsr = !empty($proc['msrs']) && (isset($proc['msrs']['pageResult']) || is_array($proc['msrs']));
             
             if (!$hasValidMsr) {
@@ -142,8 +150,17 @@ class TariffCalculator
             if ($result && isset($result->msrs->pageResult)) {
                 foreach ($result->msrs->pageResult as $msrItem) {
                     $code = $msrItem->tariffCode->code ?? null;
-                    if ($code && isset($procedureIndices[$code])) {
-                        // Apply this MSR to all procedure entries with this code
+                    if (!$code) continue;
+                    
+                    // Hydrate main_procedure if needed
+                    if ($needMainProcedureHydration && $code === ($mainProcedure['code'] ?? null)) {
+                        $payload['main_procedure']['msrs'] = [
+                            'pageResult' => [$msrItem]
+                        ];
+                    }
+                    
+                    // Hydrate procedures
+                    if (isset($procedureIndices[$code])) {
                         foreach ($procedureIndices[$code] as $procIdx) {
                             $payload['procedures'][$procIdx]['msrs'] = [
                                 'pageResult' => [$msrItem]
