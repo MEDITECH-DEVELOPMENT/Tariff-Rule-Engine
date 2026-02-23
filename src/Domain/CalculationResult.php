@@ -108,10 +108,12 @@ class CalculationResult
             $cents = (int)round($item['total'] * 100);
             $totalCents += $cents;
             
-            // Determine treatment type and quantity
-            // For modifiers (0xxx codes), use type 03
-            // For tariffs, use type 02
-            $treatmentType = (strlen($code) === 4 && $code[0] === '0') ? '03' : '02';
+            // Determine treatment type
+            // Type 02 = Tariff (including 0023, 0190, etc - these are tariff codes not modifiers)
+            // Type 03 = Modifier (0011, 0018, 0036, 0039, etc - actual modifiers)
+            // Modifiers are typically 0011-0999 range, but 0023 (time units) is a tariff
+            $modifierCodes = ['0011', '0018', '0036', '0039', '0151']; // Known modifiers
+            $treatmentType = in_array($code, $modifierCodes) ? '03' : '02';
             
             // Quantity: 100 = 1.00 unit (2 decimal places implied)
             $quantity = (int)round($item['units'] * 100);

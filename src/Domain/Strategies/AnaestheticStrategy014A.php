@@ -153,6 +153,12 @@ class AnaestheticStrategy014A implements DisciplineStrategy
             $units = $msr['numberOfUnits'] ?? 0;
             $randValue = $msr['tariffRandCalculated'] ?? ($unitPrice * ($units > 0 ? $units : 1));
             
+            // Skip procedures with 0 total (invalid for EDI)
+            if ($randValue == 0 && $units == 0) {
+                $result->log("Skipping procedure {$code} - zero value");
+                continue;
+            }
+            
             // Add Line Item
             $result->addLineItem($code, $msr['description'] ?? "Procedure {$code}", $units, $unitPrice, $randValue);
             $result->addAmount($randValue);
@@ -169,11 +175,13 @@ class AnaestheticStrategy014A implements DisciplineStrategy
         }
 
         // 4. Modifier 0036 (GP Reduction)
+        // Note: 0036 should not be sent as a separate line item in EDI
+        // The reduction is applied to the total amount only
         $reductionAmount = 0.0;
         if ($durationMinutes > 60) {
             $reductionAmount = $reducibleTotal * 0.20; 
             if ($reductionAmount > 0) {
-                $result->addLineItem('0036', "GP Reduction (Duration > 1hr)", 0, 0, -$reductionAmount);
+                // Apply reduction to total without creating a line item
                 $result->addAmount(-$reductionAmount);
                 $result->log("Modifier 0036 applied: -R" . number_format($reductionAmount, 2));
             }
@@ -189,14 +197,17 @@ class AnaestheticStrategy014A implements DisciplineStrategy
         }
         
         // 7. PMB Multiplier
+        // Note: PMB rate multiplier is applied to the total amount, not as a separate line item
+        // The PMA should handle PMB rate adjustments in the financial records, not as a tariff code
         if ($isPmb && $context->pmbRequestedRate > 1.0) {
              $currentTotal = ($reducibleTotal - $reductionAmount) + $exemptTotal;
              $newTotal = $currentTotal * $context->pmbRequestedRate;
              $extra = $newTotal - $currentTotal;
              
              if ($extra > 0) {
-                 $result->addLineItem('PMB', "PMB Rate Adjustment (x{$context->pmbRequestedRate})", 0, 0, $extra);
+                 // Apply PMB adjustment to total amount only
                  $result->addAmount($extra);
+                 $result->log("PMB Rate Adjustment (x{$context->pmbRequestedRate}): +R" . number_format($extra, 2));
              }
         }
 
