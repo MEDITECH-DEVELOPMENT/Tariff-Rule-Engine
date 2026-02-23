@@ -38,6 +38,9 @@ try {
 
     // 4. Calculate
     $response = $calculator->calculate($payload);
+    
+    // Add request body to response for debugging
+    $response['request'] = $payload;
 
     echo json_encode($response, JSON_PRETTY_PRINT);
 
