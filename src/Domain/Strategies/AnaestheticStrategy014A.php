@@ -47,8 +47,12 @@ class AnaestheticStrategy014A implements DisciplineStrategy
         // Set EDI metadata
         $result->setServiceDate($context->serviceDate);
         $result->setDiagnoses($context->diagnoses);
-        $result->setDoctorInfo('0000000', 'ANAESTHETIST'); // Placeholder - should come from context
-        $result->setTransmissionRef(uniqid('TXN'));
+        
+        // Set doctor info from context or use fallback
+        $doctorPcns = $context->doctor['pcns'] ?? '0000000';
+        $doctorName = $context->doctor['name'] ?? 'ANAESTHETIST';
+        $result->setDoctorInfo($doctorPcns, $doctorName);
+        $result->setTransmissionRef('TXNUM'); // PMA will update this at submission time
         
         // Log main procedure context if provided
         if ($context->mainProcedure) {
@@ -94,16 +98,23 @@ class AnaestheticStrategy014A implements DisciplineStrategy
         $baseTimeUnits = $this->calculateTimeUnits($durationMinutes);
         
         $totalTimeUnits = $baseTimeUnits;
-        $result->addLineItem('0023', "Time Units (Base: {$durationMinutes} min)", $baseTimeUnits, $timeUnitRate, $baseTimeUnits * $timeUnitRate);
-        $result->addAmount($baseTimeUnits * $timeUnitRate);
         
-        // Modifier 0011 (Emergency)
+        // Modifier 0011 (Emergency) - Add to time units if applicable
+        $emergUnits = 0.00;
+        $modifiers = [];
         if ($context->emergencyFlag) {
             $emergUnits = 12.00;
-            $result->addLineItem('0011', "Emergency Modifier (0011)", $emergUnits, $timeUnitRate, $emergUnits * $timeUnitRate);
-            $result->addAmount($emergUnits * $timeUnitRate);
             $totalTimeUnits += $emergUnits;
+            $modifiers[] = ['code' => '0011', 'type' => '03']; // Type 03 = Add Modifier
         }
+        
+        // Add 0023 line item with emergency modifier attached if applicable
+        $timeDescription = $context->emergencyFlag 
+            ? "Time Units (Base: {$durationMinutes} min + Emergency: 12 units)"
+            : "Time Units (Base: {$durationMinutes} min)";
+        
+        $result->addLineItem('0023', $timeDescription, $totalTimeUnits, $timeUnitRate, $totalTimeUnits * $timeUnitRate, $modifiers);
+        $result->addAmount($totalTimeUnits * $timeUnitRate);
 
         // Modifier 0018 (BMI)
         $bmi = $this->calculateBMI($context->patient);

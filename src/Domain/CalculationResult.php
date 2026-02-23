@@ -27,14 +27,15 @@ class CalculationResult
         $this->totalAmount += $amount;
     }
 
-    public function addLineItem(string $code, string $description, float $units, float $unitPrice, float $total): void
+    public function addLineItem(string $code, string $description, float $units, float $unitPrice, float $total, array $modifiers = []): void
     {
         $this->lineItems[] = [
             'code' => $code,
             'description' => substr($description, 0, 70), // Truncate safety
             'units' => round($units, 2),
             'unit_price' => round($unitPrice, 2),
-            'total' => round($total, 2)
+            'total' => round($total, 2),
+            'modifiers' => $modifiers // Array of ['code' => '0011', 'type' => '03']
         ];
     }
 
@@ -97,30 +98,6 @@ class CalculationResult
         $pcns = $this->doctorPcns ?: '0000000';
         $docName = $this->doctorName ?: 'UNKNOWN';
         
-        // DR Record - Doctor (Anaesthetist)
-        // DR|{PCNS}|{Name}|{Type}|{CMS Reg}|{CMS Type}||||
-        // Type: 03 = Anaesthetist
-        // CMS Type: 01 = HPCSA
-        $lines[] = sprintf(
-            "DR|%s|%s|03||01||||",
-            $pcns,
-            substr($docName, 0, 30)
-        );
-        
-        // D Records - Diagnoses (ICD-10)
-        // D|{Doctor Type}|{Code Type}|{Code}|{Description}|{Extended}|
-        // Doctor Type: 01 = Attending
-        // Code Type: 01 = ICD10
-        // Extended: 01 = Primary, 02 = Secondary
-        foreach ($this->diagnoses as $idx => $icd10) {
-            $extended = ($idx === 0) ? '01' : '02'; // First is primary
-            $lines[] = sprintf(
-                "D|01|01|%s||%s|",
-                $icd10,
-                $extended
-            );
-        }
-        
         // T and Z Records - Treatment Lines
         $seq = 1;
         $totalCents = 0;
@@ -158,6 +135,44 @@ class CalculationResult
                 $desc,
                 $ref
             );
+            
+            // DR Record - Doctor (appears after T record)
+            // DR|{PCNS}|{Name}|{Type}|{CMS Reg}|{CMS Type}||||
+            // Type: 03 = Anaesthetist
+            // CMS Type: 01 = HPCSA
+            $lines[] = sprintf(
+                "DR|%s|%s|03||01||||",
+                $pcns,
+                substr($docName, 0, 30)
+            );
+            
+            // MD Records - Modifiers attached to this line item
+            // MD|{Modifier Code}|{Modifier Type}|
+            // Modifier Type: 01=Informational, 02=Reduction, 03=Add, 04=Compound
+            $modifiers = $item['modifiers'] ?? [];
+            foreach ($modifiers as $modifier) {
+                $modCode = $modifier['code'] ?? '';
+                $modType = $modifier['type'] ?? '01';
+                $lines[] = sprintf(
+                    "MD|%s|%s|",
+                    $modCode,
+                    $modType
+                );
+            }
+            
+            // D Records - Diagnoses (ICD-10) after MD records
+            // D|{Doctor Type}|{Code Type}|{Code}|{Description}|{Extended}|
+            // Doctor Type: 01 = Attending
+            // Code Type: 01 = ICD10
+            // Extended: 01 = Primary, 02 = Secondary
+            foreach ($this->diagnoses as $idx => $icd10) {
+                $extended = ($idx === 0) ? '01' : '02'; // First is primary
+                $lines[] = sprintf(
+                    "D|01|01|%s||%s|",
+                    $icd10,
+                    $extended
+                );
+            }
             
             // Z Record - Treatment Financial
             // Z|{Net}|{Gross}|{DispFee}|{ContFee}|{ExcessTime}|{CallOut}|{CopyFee}|{DelivFee}|{Contract}|{Claimed}|{Discount}|{Levy}|{MMAP}|{CoPay}|{PatLiable}|{FundLiable}|{MemberReimb}|

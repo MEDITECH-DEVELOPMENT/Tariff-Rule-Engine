@@ -52,7 +52,39 @@
                 <p class="text-xs text-blue-600 mt-1">Tariffs and Rules will be applied based on this date.</p>
             </div>
 
-            <!-- Section: Patient -->
+            <!-- Section: Doctor Information -->
+            <div class="bg-teal-50 p-6 rounded-xl border border-teal-100">
+                <h2 class="text-lg font-bold text-teal-900 mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Anaesthetist Information
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Doctor Name</label>
+                        <input type="text" x-model="form.doctor.name" placeholder="e.g. Dr John Smith"
+                            class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 p-2.5 border">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">PCNS Number</label>
+                        <input type="text" x-model="form.doctor.pcns" placeholder="e.g. 0248630"
+                            class="block w-full border-gray-300 rounded-lg shadow-sm p-2.5 border focus:ring-teal-500 focus:border-teal-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Role</label>
+                        <select x-model="form.doctor.role"
+                            class="block w-full border-gray-300 rounded-lg shadow-sm p-2.5 border focus:ring-teal-500 focus:border-teal-500">
+                            <option value="03">Anaesthetist (03)</option>
+                            <option value="01">Attending/Treating (01)</option>
+                            <option value="02">Assisting (02)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section: Patient Vitals -->
             <div class="bg-slate-50 p-6 rounded-xl border border-slate-200">
                 <h2 class="text-lg font-bold text-slate-700 mb-4 flex items-center">
                     <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -346,6 +378,7 @@
                     role: '03',
                     service_date: new Date().toISOString().split('T')[0],
                     main_procedure: null, // Object: {code, description}
+                    doctor: { name: '', pcns: '', role: '03' }, // Doctor info
                     times: { start: '08:00', end: '09:00' },
                     patient: { dob: '1990-01-01', weight: 70, height: 170 },
                     emergency_flag: false,
@@ -492,6 +525,15 @@
                             code: p.code,
                         }))
                     };
+
+                    // Include doctor if provided
+                    if (this.form.doctor.name || this.form.doctor.pcns) {
+                        payload.doctor = {
+                            name: this.form.doctor.name,
+                            pcns: this.form.doctor.pcns,
+                            role: this.form.doctor.role
+                        };
+                    }
 
                     // Include main_procedure if set
                     if (this.form.main_procedure) {

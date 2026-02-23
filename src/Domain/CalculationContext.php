@@ -31,6 +31,11 @@ class CalculationContext
      * @var array|null The main surgical procedure that the anaesthetic service supports.
      */
     public ?array $mainProcedure;
+    
+    /**
+     * @var array|null Doctor information: ['name' => '', 'pcns' => '', 'role' => '']
+     */
+    public ?array $doctor;
 
     public function __construct(array $data)
     {
@@ -44,6 +49,7 @@ class CalculationContext
         $this->procedures = $data['procedures'] ?? [];
         $this->pmbRequestedRate = (float)($data['pmb_requested_rate'] ?? 1.0);
         $this->mainProcedure = $data['main_procedure'] ?? null;
+        $this->doctor = $data['doctor'] ?? null;
     }
     
     public function getDurationMinutes(): int
